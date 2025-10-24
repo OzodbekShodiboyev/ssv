@@ -83,7 +83,10 @@ class TelegramController extends Controller
 
                 // Bazadan ismni olish
                 $name = TelegramSession::getData($chatId, 'name');
-
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => "👋 Assalomu alaykum! $name, $phone",
+                ]);
                 if (!$name) {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
@@ -106,11 +109,11 @@ class TelegramController extends Controller
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "✅ Ro'yxatdan muvaffaqiyatli o'tdingiz!\n\n" .
-                             "📝 Ism: $name\n" .
-                             "📞 Telefon: $phone\n\n" .
-                             "💳 Kursga yozilish uchun quyidagi kartaga to'lov qiling:\n\n" .
-                             "💳 *8600 1234 5678 9012*\n\n" .
-                             "To'lovdan so'ng chekni yuboring.",
+                        "📝 Ism: $name\n" .
+                        "📞 Telefon: $phone\n\n" .
+                        "💳 Kursga yozilish uchun quyidagi kartaga to'lov qiling:\n\n" .
+                        "💳 *8600 1234 5678 9012*\n\n" .
+                        "To'lovdan so'ng chekni yuboring.",
                     'parse_mode' => 'Markdown',
                     'reply_markup' => json_encode([
                         'remove_keyboard' => true
@@ -134,7 +137,6 @@ class TelegramController extends Controller
             }
 
             return response()->json(['ok' => true]);
-
         } catch (\Exception $e) {
             \Log::error('Telegram webhook error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
