@@ -66,7 +66,8 @@ class TelegramController extends Controller
                 cache()->put("step_$chatId", 'ask_phone', now()->addMinutes(10));
                 return response()->json(['ok' => true]);
             }
-
+            $step = cache()->get("step_$chatId");
+            
             // Telefon raqam so'rash qadami
             if ($step == 'ask_phone') {
                 $contact = $message->getContact();
