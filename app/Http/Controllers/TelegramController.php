@@ -60,7 +60,7 @@ class TelegramController extends Controller
             $step = TelegramSession::getStep($chatId);
 
             // Ism so'rash qadami
-            if ($step == 'ask_name') {
+            if ($step == 'ask_name' && $text) {
                 TelegramSession::setStep($chatId, 'ask_phone', ['name' => $text]);
 
                 $this->telegram->sendMessage([
@@ -79,14 +79,17 @@ class TelegramController extends Controller
             // Telefon raqam so'rash qadami
             if ($step == 'ask_phone') {
                 $contact = $message->getContact();
+
+                // Agar contact yoki text bo'lsa
+                if (!$contact && !$text) {
+                    return response()->json(['ok' => true]);
+                }
+
                 $phone = $contact ? $contact->getPhoneNumber() : $text;
 
                 // Bazadan ismni olish
                 $name = TelegramSession::getData($chatId, 'name');
-                $this->telegram->sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => "👋 Assalomu alaykum! $name, $phone",
-                ]);
+
                 if (!$name) {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
@@ -109,11 +112,11 @@ class TelegramController extends Controller
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "✅ Ro'yxatdan muvaffaqiyatli o'tdingiz!\n\n" .
-                        "📝 Ism: $name\n" .
-                        "📞 Telefon: $phone\n\n" .
-                        "💳 Kursga yozilish uchun quyidagi kartaga to'lov qiling:\n\n" .
-                        "💳 *8600 1234 5678 9012*\n\n" .
-                        "To'lovdan so'ng chekni yuboring.",
+                             "📝 Ism: $name\n" .
+                             "📞 Telefon: $phone\n\n" .
+                             "💳 Kursga yozilish uchun quyidagi kartaga to'lov qiling:\n\n" .
+                             "💳 *8600 1234 5678 9012*\n\n" .
+                             "To'lovdan so'ng chekni yuboring.",
                     'parse_mode' => 'Markdown',
                     'reply_markup' => json_encode([
                         'remove_keyboard' => true
@@ -129,7 +132,8 @@ class TelegramController extends Controller
             // Agar user ro'yxatdan o'tgan bo'lsa
             if ($user) {
                 $this->handleUserMessage($chatId, $text);
-            } else {
+            } else if (!$step) {
+                // Faqat step yo'q bo'lsa va user ham yo'q bo'lsa
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "Botdan foydalanish uchun /start bosing.",
@@ -137,6 +141,7 @@ class TelegramController extends Controller
             }
 
             return response()->json(['ok' => true]);
+
         } catch (\Exception $e) {
             \Log::error('Telegram webhook error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
