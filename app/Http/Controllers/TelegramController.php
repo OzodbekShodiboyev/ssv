@@ -33,6 +33,12 @@ class TelegramController extends Controller
                 return response()->json(['ok' => true]);
             }
 
+            \Log::info("Telegram message", [
+                'chat_id' => $chatId,
+                'text' => $text,
+                'has_contact' => $message->getContact() ? 'yes' : 'no'
+            ]);
+
             $user = User::where('telegram_id', $chatId)->first();
 
             // /start command
@@ -49,11 +55,14 @@ class TelegramController extends Controller
                 return response()->json(['ok' => true]);
             }
 
+            // Step olish - FAQAT BIR MARTA
             $step = cache()->get("step_$chatId");
 
             // Ism so'rash qadami
             if ($step == 'ask_name') {
                 cache()->put("name_$chatId", $text, now()->addMinutes(10));
+                cache()->put("step_$chatId", 'ask_phone', now()->addMinutes(10));
+
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "📞 Endi telefon raqamingizni yuboring (yoki pastdagi tugma orqali ulashing):",
@@ -63,17 +72,26 @@ class TelegramController extends Controller
                         'one_time_keyboard' => true,
                     ]),
                 ]);
-                cache()->put("step_$chatId", 'ask_phone', now()->addMinutes(10));
+
                 return response()->json(['ok' => true]);
             }
-            $step = cache()->get("step_$chatId");
-            
+
             // Telefon raqam so'rash qadami
             if ($step == 'ask_phone') {
                 $contact = $message->getContact();
                 $phone = $contact ? $contact->getPhoneNumber() : $text;
 
                 $name = cache()->pull("name_$chatId");
+
+                // Agar name yo'q bo'lsa (cache tozalangan bo'lishi mumkin)
+                if (!$name) {
+                    $this->telegram->sendMessage([
+                        'chat_id' => $chatId,
+                        'text' => "❌ Sessiya tugadi. Iltimos qaytadan /start bosing.",
+                    ]);
+                    cache()->forget("step_$chatId");
+                    return response()->json(['ok' => true]);
+                }
 
                 User::create([
                     'telegram_id' => $chatId,
@@ -85,7 +103,12 @@ class TelegramController extends Controller
 
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
-                    'text' => "✅ Ro'yxatdan muvaffaqiyatli o'tdingiz!\n\n💳 Kursga yozilish uchun quyidagi kartaga to'lov qiling:\n\n💳 *8600 1234 5678 9012*\n\nTo'lovdan so'ng administratorga yozing.",
+                    'text' => "✅ Ro'yxatdan muvaffaqiyatli o'tdingiz!\n\n" .
+                             "📝 Ism: $name\n" .
+                             "📞 Telefon: $phone\n\n" .
+                             "💳 Kursga yozilish uchun quyidagi kartaga to'lov qiling:\n\n" .
+                             "💳 *8600 1234 5678 9012*\n\n" .
+                             "To'lovdan so'ng chekni yuboring.",
                     'parse_mode' => 'Markdown',
                     'reply_markup' => json_encode([
                         'remove_keyboard' => true
@@ -93,6 +116,7 @@ class TelegramController extends Controller
                 ]);
 
                 // Asosiy menyuni ko'rsat
+                sleep(1); // Bir soniya kutish
                 $this->sendMainMenu($chatId);
 
                 return response()->json(['ok' => true]);
@@ -101,12 +125,20 @@ class TelegramController extends Controller
             // Agar user ro'yxatdan o'tgan bo'lsa
             if ($user) {
                 $this->handleUserMessage($chatId, $text);
+            } else {
+                // Agar user yo'q va step ham yo'q bo'lsa
+                $this->telegram->sendMessage([
+                    'chat_id' => $chatId,
+                    'text' => "Botdan foydalanish uchun /start bosing.",
+                ]);
             }
 
             return response()->json(['ok' => true]);
 
         } catch (\Exception $e) {
-            \Log::error('Telegram webhook error: ' . $e->getMessage());
+            \Log::error('Telegram webhook error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json(['ok' => false, 'error' => $e->getMessage()], 500);
         }
     }
