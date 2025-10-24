@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Telegram\Bot\Api;
 use App\Models\User;
+use App\Models\TelegramSession;
 
 class TelegramController extends Controller
 {
@@ -20,7 +21,6 @@ class TelegramController extends Controller
         try {
             $update = $this->telegram->getWebhookUpdate();
 
-            // Agar message bo'lmasa, return qil
             if (!$update->getMessage()) {
                 return response()->json(['ok' => true]);
             }
@@ -44,24 +44,24 @@ class TelegramController extends Controller
             // /start command
             if ($text == '/start') {
                 if ($user) {
+                    TelegramSession::clearSession($chatId);
                     $this->sendMainMenu($chatId);
                 } else {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
                         'text' => "👋 Assalomu alaykum! Iltimos, to'liq ism-familiyangizni kiriting:",
                     ]);
-                    cache()->put("step_$chatId", 'ask_name', now()->addMinutes(10));
+                    TelegramSession::setStep($chatId, 'ask_name');
                 }
                 return response()->json(['ok' => true]);
             }
 
-            // Step olish - FAQAT BIR MARTA
-            $step = cache()->get("step_$chatId");
+            // Sessiyadan step olish
+            $step = TelegramSession::getStep($chatId);
 
             // Ism so'rash qadami
             if ($step == 'ask_name') {
-                cache()->put("name_$chatId", $text, now()->addMinutes(10));
-                cache()->put("step_$chatId", 'ask_phone', now()->addMinutes(10));
+                TelegramSession::setStep($chatId, 'ask_phone', ['name' => $text]);
 
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
@@ -81,25 +81,27 @@ class TelegramController extends Controller
                 $contact = $message->getContact();
                 $phone = $contact ? $contact->getPhoneNumber() : $text;
 
-                $name = cache()->pull("name_$chatId");
+                // Bazadan ismni olish
+                $name = TelegramSession::getData($chatId, 'name');
 
-                // Agar name yo'q bo'lsa (cache tozalangan bo'lishi mumkin)
                 if (!$name) {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
                         'text' => "❌ Sessiya tugadi. Iltimos qaytadan /start bosing.",
                     ]);
-                    cache()->forget("step_$chatId");
+                    TelegramSession::clearSession($chatId);
                     return response()->json(['ok' => true]);
                 }
 
+                // Userga saqlash
                 User::create([
                     'telegram_id' => $chatId,
                     'name' => $name,
                     'phone' => $phone,
                 ]);
 
-                cache()->forget("step_$chatId");
+                // Sessiyani tozalash
+                TelegramSession::clearSession($chatId);
 
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
@@ -115,8 +117,7 @@ class TelegramController extends Controller
                     ])
                 ]);
 
-                // Asosiy menyuni ko'rsat
-                sleep(1); // Bir soniya kutish
+                sleep(1);
                 $this->sendMainMenu($chatId);
 
                 return response()->json(['ok' => true]);
@@ -126,7 +127,6 @@ class TelegramController extends Controller
             if ($user) {
                 $this->handleUserMessage($chatId, $text);
             } else {
-                // Agar user yo'q va step ham yo'q bo'lsa
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "Botdan foydalanish uchun /start bosing.",
@@ -145,7 +145,6 @@ class TelegramController extends Controller
 
     protected function handleUserMessage($chatId, $text)
     {
-        // Klaviatura tugmalari uchun
         if (strpos($text, '1️⃣') !== false || strpos($text, 'Kursga yozilish') !== false) {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
@@ -170,7 +169,6 @@ class TelegramController extends Controller
             return;
         }
 
-        // Default javob
         $this->sendMainMenu($chatId);
     }
 
@@ -191,7 +189,6 @@ class TelegramController extends Controller
         ]);
     }
 
-    // Webhook o'rnatish uchun (faqat bir marta ishlatish)
     public function setWebhook()
     {
         $url = url('/telegram/webhook');
@@ -203,7 +200,6 @@ class TelegramController extends Controller
         ]);
     }
 
-    // Webhook ma'lumotlarini olish
     public function getWebhookInfo()
     {
         $response = $this->telegram->getWebhookInfo();
