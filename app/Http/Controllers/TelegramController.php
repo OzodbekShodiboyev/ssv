@@ -54,7 +54,46 @@ class TelegramController extends Controller
             }
 
             $user = User::where('telegram_id', $chatId)->first();
+            if ($chatId == self::ADMIN_CHAT_ID) {
+                // /stat - Statistika
+                if ($text == '/stat') {
+                    $this->showStatistics($chatId);
+                    return response()->json(['ok' => true]);
+                }
 
+                // /reklama - Reklama yuborish
+                if ($text == '/reklama') {
+                    TelegramSession::setStep($chatId, 'waiting_broadcast_message');
+                    $this->telegram->sendMessage([
+                        'chat_id' => $chatId,
+                        'text' => "📢 <b>Reklama xabarini yuboring:</b>\n\n" .
+                                 "✏️ Matnni, rasmni yoki dokumentni yuborishingiz mumkin.\n\n" .
+                                 "❌ Bekor qilish uchun: /bekor",
+                        'parse_mode' => 'HTML'
+                    ]);
+                    return response()->json(['ok' => true]);
+                }
+
+                // /bekor - Bekor qilish
+                if ($text == '/bekor') {
+                    $step = TelegramSession::getStep($chatId);
+                    if ($step == 'waiting_broadcast_message') {
+                        TelegramSession::clearSession($chatId);
+                        $this->telegram->sendMessage([
+                            'chat_id' => $chatId,
+                            'text' => "❌ Reklama yuborish bekor qilindi."
+                        ]);
+                        return response()->json(['ok' => true]);
+                    }
+                }
+
+                // Agar admin reklama matnini yuborsa
+                $adminStep = TelegramSession::getStep($chatId);
+                if ($adminStep == 'waiting_broadcast_message') {
+                    $this->handleBroadcastMessage($chatId, $message, $text, $photo, $document);
+                    return response()->json(['ok' => true]);
+                }
+            }
             // /start command
             if ($text == '/start') {
                 if ($user) {
@@ -325,17 +364,6 @@ class TelegramController extends Controller
             ]);
             return;
         }
-        if (strpos($text, '/stat') !== false && $chatId == self::ADMIN_CHAT_ID) {
-            $allusers = NotRegisteredUser::count();
-            $registeredusers = User::count();
-            $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => "Jami foydalanuvchilar: <b>$allusers</b>\n" .
-                    "Ro'yxatdan o'tgan foydalanuvchilar: <b>$registeredusers</b>\n",
-                'parse_mode' => 'HTML'
-            ]);
-            return;
-        }
         $this->sendMainMenu($chatId);
     }
 
@@ -370,5 +398,164 @@ class TelegramController extends Controller
     {
         $response = $this->telegram->getWebhookInfo();
         return response()->json($response);
+    }
+    // Statistika
+    protected function showStatistics($chatId)
+    {
+        $totalUsers = \App\Models\NotRegisteredUser::count();
+        $registeredUsers = User::count();
+        $todayRegistrations = User::whereDate('created_at', today())->count();
+
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => "📊 <b>Bot Statistikasi</b>\n\n" .
+                     "👥 Jami foydalanuvchilar: <b>$totalUsers</b>\n" .
+                     "✅ Ro'yxatdan o'tganlar: <b>$registeredUsers</b>\n" .
+                     "🆕 Bugun ro'yxatdan o'tganlar: <b>$todayRegistrations</b>",
+            'parse_mode' => 'HTML'
+        ]);
+    }
+
+    // Reklama xabarini qabul qilish
+    protected function handleBroadcastMessage($chatId, $message, $text, $photo, $document)
+    {
+        TelegramSession::clearSession($chatId);
+
+        $hasPhoto = !empty($photo) && is_array($photo) && count($photo) > 0;
+        $hasDocument = !empty($document) && is_array($document) && isset($document['file_id']);
+
+        // Tasdiqlash xabari
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => "✅ Reklama qabul qilindi!\n\n" .
+                     "📊 Yuborilmoqda...",
+            'parse_mode' => 'HTML'
+        ]);
+
+        // Broadcast yaratish
+        $broadcast = \App\Models\Broadcast::create([
+            'message' => $text ?? 'Media content',
+            'total_users' => 0,
+            'sent_count' => 0,
+            'failed_count' => 0,
+            'completed' => false
+        ]);
+
+        // Barcha foydalanuvchilarni olish
+        $allChatIds = collect();
+
+        // Ro'yxatdan o'tgan userlar
+        $registeredUsers = User::pluck('telegram_id');
+        $allChatIds = $allChatIds->merge($registeredUsers);
+
+        // Ro'yxatdan o'tmagan userlar (NotRegisteredUser modelingiz bor deb o'ylayman)
+        try {
+            $notRegisteredUsers = NotRegisteredUser::pluck('telegram_id');
+            $allChatIds = $allChatIds->merge($notRegisteredUsers);
+        } catch (\Exception $e) {
+            \Log::info('NotRegisteredUser model not found');
+        }
+
+        // Unique qilish
+        $allChatIds = $allChatIds->unique()->filter();
+
+        $broadcast->update(['total_users' => $allChatIds->count()]);
+
+        // Yuborish
+        $sentCount = 0;
+        $failedCount = 0;
+
+        foreach ($allChatIds as $userChatId) {
+            // Admin o'ziga yubormasin
+            if ($userChatId == self::ADMIN_CHAT_ID) {
+                continue;
+            }
+
+            // Avval yuborilganmi tekshirish
+            $alreadySent = \App\Models\BroadcastLog::where('broadcast_id', $broadcast->id)
+                ->where('telegram_id', $userChatId)
+                ->exists();
+
+            if ($alreadySent) {
+                continue;
+            }
+
+            try {
+                // Rasm bilan yuborish
+                if ($hasPhoto) {
+                    $lastPhoto = end($photo);
+                    $fileId = $lastPhoto['file_id'];
+
+                    $this->telegram->sendPhoto([
+                        'chat_id' => $userChatId,
+                        'photo' => $fileId,
+                        'caption' => $text
+                    ]);
+                }
+                // Dokument bilan yuborish
+                else if ($hasDocument) {
+                    $fileId = $document['file_id'];
+
+                    $this->telegram->sendDocument([
+                        'chat_id' => $userChatId,
+                        'document' => $fileId,
+                        'caption' => $text
+                    ]);
+                }
+                // Faqat text
+                else if ($text) {
+                    $this->telegram->sendMessage([
+                        'chat_id' => $userChatId,
+                        'text' => $text
+                    ]);
+                }
+
+                // Log ga yozish
+                \App\Models\BroadcastLog::create([
+                    'broadcast_id' => $broadcast->id,
+                    'telegram_id' => $userChatId,
+                    'success' => true,
+                    'sent_at' => now()
+                ]);
+
+                $sentCount++;
+
+                // Telegram limit: 30 xabar/soniya
+                usleep(35000); // 35ms kutish
+
+            } catch (\Exception $e) {
+                \Log::error('Broadcast failed for user', [
+                    'user_chat_id' => $userChatId,
+                    'error' => $e->getMessage()
+                ]);
+
+                \App\Models\BroadcastLog::create([
+                    'broadcast_id' => $broadcast->id,
+                    'telegram_id' => $userChatId,
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                    'sent_at' => now()
+                ]);
+
+                $failedCount++;
+            }
+        }
+
+        // Yakuniy natija
+        $broadcast->update([
+            'sent_count' => $sentCount,
+            'failed_count' => $failedCount,
+            'completed' => true
+        ]);
+
+        // Adminga natija
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => "✅ <b>Reklama yuborish yakunlandi!</b>\n\n" .
+                     "📊 Jami: <b>" . $broadcast->total_users . "</b>\n" .
+                     "✅ Muvaffaqiyatli: <b>$sentCount</b>\n" .
+                     "❌ Xatolik: <b>$failedCount</b>",
+            'parse_mode' => 'HTML'
+        ]);
     }
 }
