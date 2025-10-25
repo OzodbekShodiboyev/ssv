@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Telegram\Bot\Api;
 use App\Models\User;
 use App\Models\TelegramSession;
+use Mockery\Matcher\Not;
 
 class TelegramController extends Controller
 {
@@ -288,25 +289,25 @@ class TelegramController extends Controller
             $name = User::where('telegram_id', $chatId)->value('name');
             $phone = User::where('telegram_id', $chatId)->value('phone');
             $this->telegram->sendMessage([
-                    'chat_id' => $chatId,
-                    'text' => "❗️<b>Malaka oshirish kursiga qo'shilish uchun oxirgi qadam:</b>\n\n" .
-                        "📝 Ismingiz: <code>$name</code>\n" .
-                        "📞 Telefon: <code>$phone</code>\n\n" .
-                        "💳 <b>To'lov rekvizitlari:</b>\n" .
-                        "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
-                        "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
-                        "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
-                        "1️⃣ Yuqoridagi kartalardan biriga 200 000 (ikki yuz ming) so'm to'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
-                        "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
-                        "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
-                        "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
-                    'parse_mode' => 'HTML',
-                    'reply_markup' => json_encode([
-                        'remove_keyboard' => true
-                    ])
-                ]);
+                'chat_id' => $chatId,
+                'text' => "❗️<b>Malaka oshirish kursiga qo'shilish uchun oxirgi qadam:</b>\n\n" .
+                    "📝 Ismingiz: <code>$name</code>\n" .
+                    "📞 Telefon: <code>$phone</code>\n\n" .
+                    "💳 <b>To'lov rekvizitlari:</b>\n" .
+                    "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
+                    "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
+                    "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
+                    "1️⃣ Yuqoridagi kartalardan biriga 200 000 (ikki yuz ming) so'm to'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
+                    "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
+                    "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
+                    "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
+                'parse_mode' => 'HTML',
+                'reply_markup' => json_encode([
+                    'remove_keyboard' => true
+                ])
+            ]);
 
-                return response()->json(['ok' => true]);
+            return response()->json(['ok' => true]);
         }
 
         if (strpos($text, '2️⃣') !== false || strpos($text, 'Savollar') !== false) {
@@ -324,7 +325,16 @@ class TelegramController extends Controller
             ]);
             return;
         }
-
+        if (strpos($text, '/stat') !== false && $chatId == self::ADMIN_CHAT_ID) {
+            $allusers = NotRegisteredUser::count();
+            $registeredusers = User::count();
+            $this->telegram->sendMessage([
+                'chat_id' => $chatId,
+                'text' => "Jami foydalanuvchilar: <b>$allusers</b>\n" .
+                    "Ro'yxatdan o'tgan foydalanuvchilar: <b>$registeredusers</b>\n",
+            ]);
+            return;
+        }
         $this->sendMainMenu($chatId);
     }
 
