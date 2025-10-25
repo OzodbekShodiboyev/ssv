@@ -332,6 +332,7 @@ class TelegramController extends Controller
                 'chat_id' => $chatId,
                 'text' => "Jami foydalanuvchilar: <b>$allusers</b>\n" .
                     "Ro'yxatdan o'tgan foydalanuvchilar: <b>$registeredusers</b>\n",
+                'parse_mode' => 'HTML'
             ]);
             return;
         }
