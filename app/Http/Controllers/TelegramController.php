@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\NotRegisteredUser;
 use Illuminate\Http\Request;
 use Telegram\Bot\Api;
 use App\Models\User;
@@ -66,6 +67,9 @@ class TelegramController extends Controller
                         'parse_mode' => 'HTML'
                     ]);
                     TelegramSession::setStep($chatId, 'ask_name');
+                    NotRegisteredUser::create([
+                        'telegram_id' => $chatId
+                    ]);
                 }
                 return response()->json(['ok' => true]);
             }
