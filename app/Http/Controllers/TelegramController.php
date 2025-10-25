@@ -10,6 +10,7 @@ use App\Models\TelegramSession;
 class TelegramController extends Controller
 {
     protected $telegram;
+    const ADMIN_CHAT_ID = '925986011'; // Admin telegram ID sini kiriting
 
     public function __construct()
     {
@@ -22,22 +23,22 @@ class TelegramController extends Controller
             $update = $this->telegram->getWebhookUpdate();
 
             if (!$update->getMessage()) {
+                // Callback query (inline button bosilganda)
+                if ($update->getCallbackQuery()) {
+                    $this->handleCallbackQuery($update->getCallbackQuery());
+                }
                 return response()->json(['ok' => true]);
             }
 
             $message = $update->getMessage();
             $chatId = $message->getChat()->getId();
             $text = $message->getText();
+            $photo = $message->getPhoto();
+            $document = $message->getDocument();
 
             if (!$chatId) {
                 return response()->json(['ok' => true]);
             }
-
-            \Log::info("Telegram message", [
-                'chat_id' => $chatId,
-                'text' => $text,
-                'has_contact' => $message->getContact() ? 'yes' : 'no'
-            ]);
 
             $user = User::where('telegram_id', $chatId)->first();
 
@@ -49,7 +50,8 @@ class TelegramController extends Controller
                 } else {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
-                        'text' => "<b>👋 Assalomu alaykum!</b>\n<i>Ro'yxatdan o'tish uchun, to'liq ism-familiyangizni kiriting:</i>",
+                        'text' => "<b>Assalomu alaykum!</b>\n" .
+                                 "📝<i>Ro'yxatdan o'tish uchun, to'liq ism-familiyangizni kiriting:</i>",
                         'parse_mode' => 'HTML'
                     ]);
                     TelegramSession::setStep($chatId, 'ask_name');
@@ -66,7 +68,8 @@ class TelegramController extends Controller
 
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
-                    'text' => "<b>📞 Endi telefon raqamingizni yuboring (yoki pastdagi tugma orqali ulashing):</b>",
+                    'text' => "📞 <b>Doimiy ishlaydigan raqamingizni yozing yoki doimiy ishlaydigan raqamingiz telegram raqamingiz bilan bir xil bo'lsa, quyidagi tugmani bosing:</b>\n\n" .
+                             "<i>(yoki pastdagi tugma orqali ulashing)</i>",
                     'parse_mode' => 'HTML',
                     'reply_markup' => json_encode([
                         'keyboard' => [[['text' => '📲 Telefon raqamni yuborish', 'request_contact' => true]]],
@@ -82,20 +85,17 @@ class TelegramController extends Controller
             if ($step == 'ask_phone') {
                 $contact = $message->getContact();
 
-                // Agar contact yoki text bo'lsa
                 if (!$contact && !$text) {
                     return response()->json(['ok' => true]);
                 }
 
                 $phone = $contact ? $contact->getPhoneNumber() : $text;
-
-                // Bazadan ismni olish
                 $name = TelegramSession::getData($chatId, 'name');
 
                 if (!$name) {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
-                        'text' => "❌ Iltimos qaytadan /start bosing.",
+                        'text' => "❌ Sessiya tugadi. /start bosing.",
                     ]);
                     TelegramSession::clearSession($chatId);
                     return response()->json(['ok' => true]);
@@ -108,26 +108,33 @@ class TelegramController extends Controller
                     'phone' => $phone,
                 ]);
 
-                // Sessiyani tozalash
                 TelegramSession::clearSession($chatId);
 
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
-                    'text' => "✅ Ro'yxatdan muvaffaqiyatli o'tdingiz!\n\n" .
-                             "📝 Ism: $name\n" .
-                             "📞 Telefon: $phone\n\n" .
-                             "💳 Kursga yozilish uchun quyidagi kartaga to'lov qiling:\n\n" .
-                             "💳 *8600 1234 5678 9012*\n\n" .
-                             "To'lovdan so'ng chekni yuboring.",
-                    'parse_mode' => 'Markdown',
+                    'text' => "❗️<b>Malaka oshirish kursiga qo'shilish uchun oxirgi qadam:</b>\n\n" .
+                             "📝 Ismingiz: <code>$name</code>\n" .
+                             "📞 Telefon: <code>$phone</code>\n\n" .
+                             "💳 <b>To'lov rekvizitlari:</b>\n" .
+                             "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
+                             "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
+                             "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
+                             "1️⃣ To'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
+                             "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
+                             "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
+                             "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
+                    'parse_mode' => 'HTML',
                     'reply_markup' => json_encode([
                         'remove_keyboard' => true
                     ])
                 ]);
 
-                sleep(1);
-                $this->sendMainMenu($chatId);
+                return response()->json(['ok' => true]);
+            }
 
+            // Agar user ro'yxatdan o'tgan bo'lsa va rasm/file yuborsa
+            if ($user && ($photo || $document)) {
+                $this->handlePaymentReceipt($user, $message, $photo, $document);
                 return response()->json(['ok' => true]);
             }
 
@@ -135,7 +142,6 @@ class TelegramController extends Controller
             if ($user) {
                 $this->handleUserMessage($chatId, $text);
             } else if (!$step) {
-                // Faqat step yo'q bo'lsa va user ham yo'q bo'lsa
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "Ro'yxatdan o'tish uchun /start bosing.",
@@ -152,28 +158,139 @@ class TelegramController extends Controller
         }
     }
 
+    protected function handlePaymentReceipt($user, $message, $photo, $document)
+    {
+        $chatId = $user->telegram_id;
+
+        // Userga tasdiqlash xabari
+        $this->telegram->sendMessage([
+            'chat_id' => $chatId,
+            'text' => "✅ To'lov cheki qabul qilindi!\n\n" .
+                     "⏳ Chekingiz ko'rib chiqilmoqda...\n" .
+                     "📞 Tez orada siz bilan bog'lanamiz (30 daqiqa ichida)",
+        ]);
+
+        // Adminga yuborish
+        $adminMessage = "🔔 <b>Yangi to'lov cheki!</b>\n\n" .
+                       "👤 Ism: <b>{$user->name}</b>\n" .
+                       "📞 Telefon: <code>{$user->phone}</code>\n" .
+                       "🆔 User ID: <code>{$user->telegram_id}</code>\n" .
+                       "📅 Vaqt: " . now()->format('d.m.Y H:i');
+
+        // Avval rasmni yuborish
+        if ($photo) {
+            $fileId = end($photo)['file_id'];
+            $this->telegram->sendPhoto([
+                'chat_id' => self::ADMIN_CHAT_ID,
+                'photo' => $fileId,
+                'caption' => $adminMessage,
+                'parse_mode' => 'HTML',
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => '✅ Bog\'lanish', 'url' => "tg://user?id={$user->telegram_id}"]
+                        ],
+                        [
+                            ['text' => '❌ Bog\'lanib bo\'lmadi', 'callback_data' => "cant_contact_{$user->telegram_id}"]
+                        ]
+                    ]
+                ])
+            ]);
+        } else if ($document) {
+            $fileId = $document['file_id'];
+            $this->telegram->sendDocument([
+                'chat_id' => self::ADMIN_CHAT_ID,
+                'document' => $fileId,
+                'caption' => $adminMessage,
+                'parse_mode' => 'HTML',
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => '✅ Bog\'lanish', 'url' => "tg://user?id={$user->telegram_id}"]
+                        ],
+                        [
+                            ['text' => '❌ Bog\'lanib bo\'lmadi', 'callback_data' => "cant_contact_{$user->telegram_id}"]
+                        ]
+                    ]
+                ])
+            ]);
+        }
+
+        \Log::info('Payment receipt sent to admin', ['user_id' => $user->id]);
+    }
+
+    protected function handleCallbackQuery($callbackQuery)
+    {
+        $data = $callbackQuery->getData();
+        $callbackId = $callbackQuery->getId();
+        $adminChatId = $callbackQuery->getMessage()->getChat()->getId();
+
+        // "Bog'lanib bo'lmadi" tugmasi bosilganda
+        if (strpos($data, 'cant_contact_') === 0) {
+            $userChatId = str_replace('cant_contact_', '', $data);
+
+            // Userga xabar yuborish
+            $this->telegram->sendMessage([
+                'chat_id' => $userChatId,
+                'text' => "❌ <b>Sizga bog'lanishda muammo yuz berdi</b>\n\n" .
+                         "📞 Iltimos, quyidagi telegram manzilga murojaat qiling:\n\n" .
+                         "👉 @ozodbek_shodiboyev\n\n" .
+                         "Yoki qo'ng'iroq qiling: <code>+998 50 571 70 71</code>",
+                'parse_mode' => 'HTML'
+            ]);
+
+            // Adminga tasdiqlash
+            $this->telegram->answerCallbackQuery([
+                'callback_query_id' => $callbackId,
+                'text' => '✅ Foydalanuvchiga xabar yuborildi',
+                'show_alert' => true
+            ]);
+
+            // Xabarni yangilash
+            $this->telegram->editMessageReplyMarkup([
+                'chat_id' => $adminChatId,
+                'message_id' => $callbackQuery->getMessage()->getMessageId(),
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => '✅ Xabar yuborildi', 'callback_data' => 'done']
+                        ]
+                    ]
+                ])
+            ]);
+        }
+    }
+
     protected function handleUserMessage($chatId, $text)
     {
         if (strpos($text, '1️⃣') !== false || strpos($text, 'Kursga yozilish') !== false) {
+            $name = User::where('telegram_id', $chatId)->value('name');
+            $phone = User::where('telegram_id', $chatId)->value('phone');
             $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => "📚 Kurslar ro'yxati:\n\n1. Frontend Development\n2. Backend Development\n3. Mobile Development\n\nQaysi kursga yozilmoqchisiz?",
-            ]);
+                    'chat_id' => $chatId,
+                    'text' => "❗️<b>Malaka oshirish kursiga qo'shilish uchun oxirgi qadam:</b>\n\n" .
+                             "📝 Ismingiz: <code>$name</code>\n" .
+                             "📞 Telefon: <code>$phone</code>\n\n" .
+                             "💳 <b>To'lov rekvizitlari:</b>\n" .
+                             "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
+                             "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
+                             "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
+                             "1️⃣ To'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
+                             "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
+                             "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
+                             "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
+                    'parse_mode' => 'HTML',
+                    'reply_markup' => json_encode([
+                        'remove_keyboard' => true
+                    ])
+                ]);
             return;
         }
 
-        if (strpos($text, '2️⃣') !== false || strpos($text, 'Savollar') !== false) {
+        if (strpos($text, '2️⃣') !== false || strpos($text, 'Kurs haqida') !== false) {
             $this->telegram->sendMessage([
                 'chat_id' => $chatId,
                 'text' => "❓ Savolingizni yozing, tez orada javob beramiz!",
-            ]);
-            return;
-        }
-
-        if (strpos($text, '3️⃣') !== false || strpos($text, 'Qo\'llab-quvvatlash') !== false) {
-            $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => "📞 Qo'llab-quvvatlash:\n\n📧 Email: support@example.com\n📱 Telefon: +998 90 123 45 67\n\nYoki savolingizni shu yerga yozing!",
             ]);
             return;
         }
@@ -184,8 +301,7 @@ class TelegramController extends Controller
     protected function sendMainMenu($chatId)
     {
         $keyboard = [
-            ['1️⃣ Kursga yozilish'],
-            ['2️⃣ Savollar', '3️⃣ Qo\'llab-quvvatlash']
+            ['1️⃣ Kursga yozilish', '2️⃣ Kurs haqida']
         ];
 
         $this->telegram->sendMessage([
