@@ -284,6 +284,8 @@ class TelegramController extends Controller
     protected function handleUserMessage($chatId, $text)
     {
         if (strpos($text, '1️⃣') !== false || strpos($text, 'Kursga yozilish') !== false) {
+            $name = User::where('telegram_id', $chatId)->value('name');
+            $phone = User::where('telegram_id', $chatId)->value('phone');
             $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "❗️<b>Malaka oshirish kursiga qo'shilish uchun oxirgi qadam:</b>\n\n" .
