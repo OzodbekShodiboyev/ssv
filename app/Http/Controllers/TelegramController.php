@@ -201,7 +201,7 @@ class TelegramController extends Controller
         if ($photo) {
             $fileId = end($photo)['file_id'];
             $this->telegram->sendPhoto([
-                'chat_id' => self::ADMIN_CHAT_ID,
+                'chat_id' => '925986011',
                 'photo' => $fileId,
                 'caption' => $adminMessage,
                 'parse_mode' => 'HTML',
@@ -219,7 +219,7 @@ class TelegramController extends Controller
         } else if ($document) {
             $fileId = $document['file_id'];
             $this->telegram->sendDocument([
-                'chat_id' => self::ADMIN_CHAT_ID,
+                'chat_id' => '925986011',
                 'document' => $fileId,
                 'caption' => $adminMessage,
                 'parse_mode' => 'HTML',
