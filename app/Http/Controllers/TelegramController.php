@@ -130,7 +130,7 @@ class TelegramController extends Controller
                         "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
                         "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
                         "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
-                        "1️⃣ To'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
+                        "1️⃣ Yuqoridagi kartalardan biriga 200 000 (ikki yuz ming) so'm to'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
                         "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
                         "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
                         "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
