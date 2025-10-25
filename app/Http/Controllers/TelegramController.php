@@ -70,8 +70,8 @@ class TelegramController extends Controller
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
                         'text' => "👋 <b>Assalomu alaykum!</b>\n\n" .
-                                 "🎓 Malaka oshirish kursiga xush kelibsiz!\n\n" .
-                                 "📝 <i>Ro'yxatdan o'tish uchun, to'liq ism-familiyangizni kiriting:</i>",
+                            "🎓 Malaka oshirish kursiga xush kelibsiz!\n\n" .
+                            "📝 <i>Ro'yxatdan o'tish uchun, to'liq ism-familiyangizni kiriting:</i>",
                         'parse_mode' => 'HTML'
                     ]);
                     TelegramSession::setStep($chatId, 'ask_name');
@@ -89,7 +89,7 @@ class TelegramController extends Controller
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "📞 <b>Telefon raqamingizni yuboring:</b>\n\n" .
-                             "<i>(yoki pastdagi tugma orqali ulashing)</i>",
+                        "<i>(yoki pastdagi tugma orqali ulashing)</i>",
                     'parse_mode' => 'HTML',
                     'reply_markup' => json_encode([
                         'keyboard' => [[['text' => '📲 Telefon raqamni yuborish', 'request_contact' => true]]],
@@ -133,16 +133,16 @@ class TelegramController extends Controller
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
                     'text' => "❗️<b>Malaka oshirish kursiga qo'shilish uchun oxirgi qadam:</b>\n\n" .
-                             "📝 Ismingiz: <code>$name</code>\n" .
-                             "📞 Telefon: <code>$phone</code>\n\n" .
-                             "💳 <b>To'lov rekvizitlari:</b>\n" .
-                             "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
-                             "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
-                             "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
-                             "1️⃣ To'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
-                             "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
-                             "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
-                             "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
+                        "📝 Ismingiz: <code>$name</code>\n" .
+                        "📞 Telefon: <code>$phone</code>\n\n" .
+                        "💳 <b>To'lov rekvizitlari:</b>\n" .
+                        "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
+                        "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
+                        "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
+                        "1️⃣ To'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
+                        "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
+                        "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
+                        "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
                     'parse_mode' => 'HTML',
                     'reply_markup' => json_encode([
                         'remove_keyboard' => true
@@ -169,7 +169,6 @@ class TelegramController extends Controller
             }
 
             return response()->json(['ok' => true]);
-
         } catch (\Exception $e) {
             \Log::error('Telegram webhook error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
@@ -186,20 +185,22 @@ class TelegramController extends Controller
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => "✅ To'lov cheki qabul qilindi!\n\n" .
-                     "⏳ Chekingiz ko'rib chiqilmoqda...\n" .
-                     "📞 Tez orada siz bilan bog'lanamiz (30 daqiqa ichida)",
+                "⏳ Chekingiz ko'rib chiqilmoqda...\n" .
+                "📞 Tez orada siz bilan bog'lanamiz (30 daqiqa ichida)",
         ]);
 
         // Adminga yuborish
         $adminMessage = "🔔 <b>Yangi to'lov cheki!</b>\n\n" .
-                       "👤 Ism: <b>{$user->name}</b>\n" .
-                       "📞 Telefon: <code>{$user->phone}</code>\n" .
-                       "🆔 User ID: <code>{$user->telegram_id}</code>\n" .
-                       "📅 Vaqt: " . now()->format('d.m.Y H:i');
+            "👤 Ism: <b>{$user->name}</b>\n" .
+            "📞 Telefon: <code>{$user->phone}</code>\n" .
+            "🆔 User ID: <code>{$user->telegram_id}</code>\n" .
+            "📅 Vaqt: " . now()->format('d.m.Y H:i');
 
         // Avval rasmni yuborish
         if ($photo) {
-            $fileId = end($photo)['file_id'];
+            $photoSizes = $photo;
+            $biggestPhoto = end($photoSizes);
+            $fileId = $biggestPhoto->getFileId();
             $this->telegram->sendPhoto([
                 'chat_id' => self::ADMIN_CHAT_ID,
                 'photo' => $fileId,
@@ -217,7 +218,7 @@ class TelegramController extends Controller
                 ])
             ]);
         } else if ($document) {
-            $fileId = $document['file_id'];
+            $fileId = $document->getFileId();
             $this->telegram->sendDocument([
                 'chat_id' => self::ADMIN_CHAT_ID,
                 'document' => $fileId,
@@ -253,9 +254,9 @@ class TelegramController extends Controller
             $this->telegram->sendMessage([
                 'chat_id' => $userChatId,
                 'text' => "❌ <b>Sizga bog'lanishda muammo yuz berdi</b>\n\n" .
-                         "📞 Iltimos, quyidagi telegram manzilga murojaat qiling:\n\n" .
-                         "👉 @YourSupportUsername\n\n" .
-                         "Yoki qo'ng'iroq qiling: <code>+998 90 123 45 67</code>",
+                    "📞 Iltimos, quyidagi telegram manzilga murojaat qiling:\n\n" .
+                    "👉 @YourSupportUsername\n\n" .
+                    "Yoki qo'ng'iroq qiling: <code>+998 90 123 45 67</code>",
                 'parse_mode' => 'HTML'
             ]);
 
