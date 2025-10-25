@@ -51,14 +51,6 @@ class TelegramController extends Controller
                 return response()->json(['ok' => true]);
             }
 
-            \Log::info("Telegram message", [
-                'chat_id' => $chatId,
-                'text' => $text,
-                'has_contact' => $message->getContact() ? 'yes' : 'no',
-                'has_photo' => $photo ? 'yes' : 'no',
-                'has_document' => $document ? 'yes' : 'no'
-            ]);
-
             $user = User::where('telegram_id', $chatId)->first();
 
             // /start command
@@ -69,8 +61,7 @@ class TelegramController extends Controller
                 } else {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
-                        'text' => "👋 <b>Assalomu alaykum!</b>\n\n" .
-                            "🎓 Malaka oshirish kursiga xush kelibsiz!\n\n" .
+                        'text' => "<b>Assalomu alaykum!</b>\n\n" .
                             "📝 <i>Ro'yxatdan o'tish uchun, to'liq ism-familiyangizni kiriting:</i>",
                         'parse_mode' => 'HTML'
                     ]);
@@ -88,8 +79,8 @@ class TelegramController extends Controller
 
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
-                    'text' => "📞 <b>Telefon raqamingizni yuboring:</b>\n\n" .
-                        "<i>(yoki pastdagi tugma orqali ulashing)</i>",
+                    'text' => "📞 <b>Doimiy ishlaydigan telefon raqamingizni yuboring:</b>\n\n" .
+                        "<i>(Agar telfon raqamingiz telegram raqamingiz bilan bir xil bo'lsa pastdagi tugma orqali yuboring!)</i>",
                     'parse_mode' => 'HTML',
                     'reply_markup' => json_encode([
                         'keyboard' => [[['text' => '📲 Telefon raqamni yuborish', 'request_contact' => true]]],
@@ -239,9 +230,6 @@ class TelegramController extends Controller
                     'inline_keyboard' => [
                         [
                             ['text' => '✅ Bog\'lanish', 'url' => "tg://user?id={$user->telegram_id}"]
-                        ],
-                        [
-                            ['text' => '❌ Bog\'lanib bo\'lmadi', 'callback_data' => "cant_contact_{$user->telegram_id}"]
                         ]
                     ]
                 ])
@@ -297,10 +285,25 @@ class TelegramController extends Controller
     {
         if (strpos($text, '1️⃣') !== false || strpos($text, 'Kursga yozilish') !== false) {
             $this->telegram->sendMessage([
-                'chat_id' => $chatId,
-                'text' => "📚 Kurslar ro'yxati:\n\n1. Frontend Development\n2. Backend Development\n3. Mobile Development\n\nQaysi kursga yozilmoqchisiz?",
-            ]);
-            return;
+                    'chat_id' => $chatId,
+                    'text' => "❗️<b>Malaka oshirish kursiga qo'shilish uchun oxirgi qadam:</b>\n\n" .
+                        "📝 Ismingiz: <code>$name</code>\n" .
+                        "📞 Telefon: <code>$phone</code>\n\n" .
+                        "💳 <b>To'lov rekvizitlari:</b>\n" .
+                        "🔹 UzCard: <code>6262 4700 5443 3169</code>\n" .
+                        "🔹 Humo: <code>9860 3501 1851 8355</code>\n\n" .
+                        "📋 <b>To'lovni amalga oshirish tartibi:</b>\n\n" .
+                        "1️⃣ To'lovni Click, Payme, UzumBank, Zumrad kabi ilovalar orqali (kartadan-kartaga) yoki Paynet shaxobchalari orqali amalga oshiring ✅\n\n" .
+                        "2️⃣ To'lov qilgandan so'ng <b>screenshot qilib mana shu botga yuboring</b> ✅\n" .
+                        "   <i>(Screenshot'da summa, sana va vaqt ko'rinishi shart)</i>\n\n" .
+                        "3️⃣ To'lovingizni 30 daqiqa ichida ko'rib chiqib, siz bilan bog'lanamiz ✅",
+                    'parse_mode' => 'HTML',
+                    'reply_markup' => json_encode([
+                        'remove_keyboard' => true
+                    ])
+                ]);
+
+                return response()->json(['ok' => true]);
         }
 
         if (strpos($text, '2️⃣') !== false || strpos($text, 'Savollar') !== false) {
@@ -326,7 +329,6 @@ class TelegramController extends Controller
     {
         $keyboard = [
             ['1️⃣ Kursga yozilish'],
-            ['2️⃣ Savollar', '3️⃣ Qo\'llab-quvvatlash']
         ];
 
         $this->telegram->sendMessage([
