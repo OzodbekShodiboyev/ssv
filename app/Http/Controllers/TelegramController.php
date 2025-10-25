@@ -49,7 +49,8 @@ class TelegramController extends Controller
                 } else {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
-                        'text' => "👋 Assalomu alaykum! Iltimos, to'liq ism-familiyangizni kiriting:",
+                        'text' => "<b>👋 Assalomu alaykum!</b>\n<i>Ro'yxatdan o'tish uchun, to'liq ism-familiyangizni kiriting:</i>",
+                        'parse_mode' => 'HTML'
                     ]);
                     TelegramSession::setStep($chatId, 'ask_name');
                 }
@@ -65,9 +66,10 @@ class TelegramController extends Controller
 
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
-                    'text' => "📞 Endi telefon raqamingizni yuboring (yoki pastdagi tugma orqali ulashing):",
+                    'text' => "<b>📞 Endi telefon raqamingizni yuboring (yoki pastdagi tugma orqali ulashing):</b>",
+                    'parse_mode' => 'HTML',
                     'reply_markup' => json_encode([
-                        'keyboard' => [[['text' => '📲 Telefon raqamni ulashish', 'request_contact' => true]]],
+                        'keyboard' => [[['text' => '📲 Telefon raqamni yuborish', 'request_contact' => true]]],
                         'resize_keyboard' => true,
                         'one_time_keyboard' => true,
                     ]),
@@ -93,7 +95,7 @@ class TelegramController extends Controller
                 if (!$name) {
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
-                        'text' => "❌ Sessiya tugadi. Iltimos qaytadan /start bosing.",
+                        'text' => "❌ Iltimos qaytadan /start bosing.",
                     ]);
                     TelegramSession::clearSession($chatId);
                     return response()->json(['ok' => true]);
@@ -136,7 +138,7 @@ class TelegramController extends Controller
                 // Faqat step yo'q bo'lsa va user ham yo'q bo'lsa
                 $this->telegram->sendMessage([
                     'chat_id' => $chatId,
-                    'text' => "Botdan foydalanish uchun /start bosing.",
+                    'text' => "Ro'yxatdan o'tish uchun /start bosing.",
                 ]);
             }
 
