@@ -212,9 +212,6 @@ class TelegramController extends Controller
                     'inline_keyboard' => [
                         [
                             ['text' => '✅ Bog\'lanish', 'url' => "tg://user?id={$user->telegram_id}"]
-                        ],
-                        [
-                            ['text' => '❌ Bog\'lanib bo\'lmadi', 'callback_data' => "cant_contact_{$user->telegram_id}"]
                         ]
                     ]
                 ])
