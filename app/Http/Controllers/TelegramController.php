@@ -67,8 +67,8 @@ class TelegramController extends Controller
                     $this->telegram->sendMessage([
                         'chat_id' => $chatId,
                         'text' => "📢 <b>Reklama xabarini yuboring:</b>\n\n" .
-                                 "✏️ Matnni, rasmni yoki dokumentni yuborishingiz mumkin.\n\n" .
-                                 "❌ Bekor qilish uchun: /bekor",
+                            "✏️ Matnni, rasmni yoki dokumentni yuborishingiz mumkin.\n\n" .
+                            "❌ Bekor qilish uchun: /bekor",
                         'parse_mode' => 'HTML'
                     ]);
                     return response()->json(['ok' => true]);
@@ -409,9 +409,9 @@ class TelegramController extends Controller
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => "📊 <b>Bot Statistikasi</b>\n\n" .
-                     "👥 Jami foydalanuvchilar: <b>$totalUsers</b>\n" .
-                     "✅ Ro'yxatdan o'tganlar: <b>$registeredUsers</b>\n" .
-                     "🆕 Bugun ro'yxatdan o'tganlar: <b>$todayRegistrations</b>",
+                "👥 Jami foydalanuvchilar: <b>$totalUsers</b>\n" .
+                "✅ Ro'yxatdan o'tganlar: <b>$registeredUsers</b>\n" .
+                "🆕 Bugun ro'yxatdan o'tganlar: <b>$todayRegistrations</b>",
             'parse_mode' => 'HTML'
         ]);
     }
@@ -428,7 +428,7 @@ class TelegramController extends Controller
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => "✅ Reklama qabul qilindi!\n\n" .
-                     "📊 Yuborilmoqda...",
+                "📊 Yuborilmoqda...",
             'parse_mode' => 'HTML'
         ]);
 
@@ -483,8 +483,18 @@ class TelegramController extends Controller
             try {
                 // Rasm bilan yuborish
                 if ($hasPhoto) {
-                    $lastPhoto = end($photo);
-                    $fileId = $lastPhoto['file_id'];
+                    $photoSizes = $photo instanceof \Illuminate\Support\Collection
+                        ? $photo->toArray()
+                        : (array) $photo;
+
+                    $biggest = count($photoSizes) > 0 ? end($photoSizes) : null;
+
+                    if (!$biggest || !isset($biggest['file_id'])) {
+                        \Log::error('Telegram photo object invalid - no file_id', ['photo' => $photoSizes]);
+                        return;
+                    }
+
+                    $fileId = $biggest['file_id'];
 
                     $this->telegram->sendPhoto([
                         'chat_id' => $userChatId,
@@ -494,7 +504,7 @@ class TelegramController extends Controller
                 }
                 // Dokument bilan yuborish
                 else if ($hasDocument) {
-                    $fileId = $document['file_id'];
+                    $fileId = $document->getFileId();
 
                     $this->telegram->sendDocument([
                         'chat_id' => $userChatId,
@@ -552,9 +562,9 @@ class TelegramController extends Controller
         $this->telegram->sendMessage([
             'chat_id' => $chatId,
             'text' => "✅ <b>Reklama yuborish yakunlandi!</b>\n\n" .
-                     "📊 Jami: <b>" . $broadcast->total_users . "</b>\n" .
-                     "✅ Muvaffaqiyatli: <b>$sentCount</b>\n" .
-                     "❌ Xatolik: <b>$failedCount</b>",
+                "📊 Jami: <b>" . $broadcast->total_users . "</b>\n" .
+                "✅ Muvaffaqiyatli: <b>$sentCount</b>\n" .
+                "❌ Xatolik: <b>$failedCount</b>",
             'parse_mode' => 'HTML'
         ]);
     }
