@@ -198,20 +198,24 @@ class TelegramController extends Controller
 
         // Avval rasmni yuborish
         if ($photo) {
-            $photoSizes = $photo;
-            $biggest = is_array($photoSizes) && count($photoSizes) > 0 ? end($photoSizes) : null;
+            // Collection bo‘lsa arrayga aylantiramiz
+            $photoSizes = $photo instanceof \Illuminate\Support\Collection
+                ? $photo->toArray()
+                : (array) $photo;
 
-            if (!$biggest || !method_exists($biggest, 'getFileId')) {
-                \Log::error('Telegram photo object invalid', ['photo' => $photo]);
+            $biggest = count($photoSizes) > 0 ? end($photoSizes) : null;
+
+            if (!$biggest || !isset($biggest['file_id'])) {
+                \Log::error('Telegram photo object invalid - no file_id', ['photo' => $photoSizes]);
                 return;
             }
 
-            $fileId = $biggest->getFileId();
+            $fileId = $biggest['file_id'];
 
             $this->telegram->sendPhoto([
-                'chat_id' => (int) self::ADMIN_CHAT_ID,
-                'photo' => $fileId,
-                'caption' => $adminMessage,
+                'chat_id'  => (int) self::ADMIN_CHAT_ID,
+                'photo'    => $fileId,
+                'caption'  => $adminMessage,
                 'parse_mode' => 'HTML',
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [
