@@ -44,28 +44,8 @@ class TelegramController extends Controller
             $message = $update->getMessage();
             $chatId = $message->getChat()->getId();
             $text = $message->getText();
-
-            // Photo va document to'g'ri olish
-            $photo = null;
-            $document = null;
-
-            try {
-                $photo = $message->getPhoto();
-                if ($photo && !is_array($photo)) {
-                    $photo = null;
-                }
-            } catch (\Exception $e) {
-                $photo = null;
-            }
-
-            try {
-                $document = $message->getDocument();
-                if ($document && !is_array($document)) {
-                    $document = null;
-                }
-            } catch (\Exception $e) {
-                $document = null;
-            }
+            $photo = $message->getPhoto();
+            $document = $message->getDocument();
 
             if (!$chatId) {
                 return response()->json(['ok' => true]);
